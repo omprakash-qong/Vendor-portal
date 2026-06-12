@@ -139,7 +139,7 @@
                 </div>
                 <p class="field-hint">Paste the page that lists your products. Importing runs in the background and products appear under “Needs Review”.</p>
             </div>
-            <button type="submit" class="btn btn-primary">📥 Import</button>
+            <button type="submit" class="btn btn-primary">Import</button>
         </form>
     </div>
 </div>

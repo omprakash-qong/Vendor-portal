@@ -105,7 +105,7 @@
 
             <div class="btn-row" style="padding-left:0;padding-right:0;margin-top:8px;">
                 <a href="{{ route('vendor.products.index') }}" class="btn btn-outline">Cancel</a>
-                <button type="submit" class="btn btn-primary">✔ Save Product</button>
+                <button type="submit" class="btn btn-primary">Save Product</button>
             </div>
         </form>
     </div>

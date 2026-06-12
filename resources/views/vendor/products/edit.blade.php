@@ -143,7 +143,7 @@
             <div class="btn-row" style="padding-left:0;padding-right:0;margin-top:8px;">
                 <a href="{{ route('vendor.products.index') }}" class="btn btn-outline">Cancel</a>
                 <button type="submit" class="btn btn-primary">
-                    {{ $product->status === 'inactive' ? '✔ Save & Add to Catalogue' : 'Save Changes' }}
+                    {{ $product->status === 'inactive' ? 'Save & Add to Catalogue' : 'Save Changes' }}
                 </button>
             </div>
         </form>

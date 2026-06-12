@@ -176,10 +176,13 @@ class CrawlWebsiteJob implements ShouldQueue
     public function failed(\Throwable $e): void
     {
         $job = ImportJob::find($this->importJobId);
+        // A finished job must never be flipped back to failed (e.g. by a
+        // stale duplicate attempt after a queue re-dispatch).
+        if (!$job || $job->status === 'completed') return;
         // Sanitize + cap so a malformed/long message can't itself fail the
         // write (1366) and leave the job stuck on "running".
         $msg = mb_substr(mb_convert_encoding($e->getMessage(), 'UTF-8', 'UTF-8'), 0, 500);
-        $job?->update(['status' => 'failed', 'error_message' => $msg, 'completed_at' => now()]);
+        $job->update(['status' => 'failed', 'error_message' => $msg, 'completed_at' => now()]);
     }
 
     private function addLog(ImportJob $job, string $level, ?string $url, string $message): void

@@ -38,7 +38,7 @@
         <h1 class="page-title">Quotations</h1>
         <p class="page-subtitle">Create a quotation and attach the PDF you want to send to your customer.</p>
     </div>
-    <a href="{{ route('vendor.quotations.create') }}" class="btn btn-primary" style="padding:11px 20px;margin-top:8px;">➕ New Quotation</a>
+    <a href="{{ route('vendor.quotations.create') }}" class="btn btn-primary" style="padding:11px 20px;margin-top:8px;">New Quotation</a>
 </div>
 
 

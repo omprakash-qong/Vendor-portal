@@ -81,8 +81,8 @@
         </p>
     </div>
     <div style="display:flex;gap:10px;margin-top:8px;">
-        <a href="{{ route('vendor.import.index') }}" class="btn btn-outline" style="padding:10px 18px;font-size:14px;">📥 Import</a>
-        <a href="{{ route('vendor.products.create') }}" class="btn btn-primary" style="padding:10px 18px;font-size:14px;">➕ Add Manually</a>
+        <a href="{{ route('vendor.import.index') }}" class="btn btn-outline" style="padding:10px 18px;font-size:14px;">Import</a>
+        <a href="{{ route('vendor.products.create') }}" class="btn btn-primary" style="padding:10px 18px;font-size:14px;">Add Manually</a>
     </div>
 </div>
 

@@ -55,7 +55,7 @@
 
             <div class="btn-row" style="padding-left:0;padding-right:0;">
                 <a href="{{ route('vendor.quotations.index') }}" class="btn btn-outline">Cancel</a>
-                <button type="submit" class="btn btn-primary">✔ Save Quotation</button>
+                <button type="submit" class="btn btn-primary">Save Quotation</button>
             </div>
         </form>
     </div>
