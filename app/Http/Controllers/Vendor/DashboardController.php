@@ -10,17 +10,9 @@ class DashboardController extends Controller
     public function index()
     {
         $vendor = auth()->user()->vendorProfile;
-        
+
         if (!$vendor) {
-            $vendor = auth()->user()->vendorProfile()->create([
-                'legal_company_name' => (auth()->user()->name ?? 'Vendor') . ' Solutions',
-                'trade_name' => auth()->user()->name ?? 'Vendor',
-                'company_type' => 'Pvt Ltd',
-                'primary_email' => auth()->user()->email,
-                'submission_status' => 'approved',
-                'terms_accepted' => true,
-                'data_accurate' => true,
-            ]);
+            abort(500, 'Vendor profile not found. Please contact support.');
         }
 
         $stats = [

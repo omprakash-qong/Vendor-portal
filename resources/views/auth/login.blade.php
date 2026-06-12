@@ -85,7 +85,10 @@
         </div>
         <div class="divider"></div>
         <h2 class="qong-heading">Sign In</h2>
-        <p class="qong-sub">Access engineering deliverables &amp; P&amp;ID data</p>
+        <p class="qong-sub">Access your vendor portal — manage products, quotations &amp; imports</p>
+        @if (session('status'))
+            <div class="alert-success">{{ session('status') }}</div>
+        @endif
         @if (session('error'))
             <div class="alert-error">{{ session('error') }}</div>
         @endif
