@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>QONG – @yield('title', 'Vendor Application')</title>
+    <link rel="icon" type="image/x-icon" href="{{ asset('favicon.ico') }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('favicon.png') }}">
+    <link rel="apple-touch-icon" href="{{ asset('images/qong-mark.png') }}">
     <link rel="stylesheet" href="{{ asset('css/qong-tokens.css') }}">
 
     <style>
@@ -109,7 +112,7 @@
 
 <header class="app-header">
     <a href="{{ url('/') }}" class="app-logo">
-        <img src="{{ asset('images/qong-logo.png') }}" alt="QONG" class="app-logo-icon" style="width:28px;height:28px;object-fit:contain;">
+        <img src="{{ asset('images/qong-mark.png') }}" alt="QONG" class="app-logo-icon" style="width:28px;height:28px;object-fit:contain;">
         <div>
             <div class="app-logo-title">QONG</div>
             <div class="app-logo-sub">Beyond Plant</div>

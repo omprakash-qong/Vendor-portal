@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Admin – @yield('title', 'Vendor Management') | QONG</title>
+    <link rel="icon" type="image/x-icon" href="{{ asset('favicon.ico') }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('favicon.png') }}">
+    <link rel="apple-touch-icon" href="{{ asset('images/qong-mark.png') }}">
     <link rel="stylesheet" href="{{ asset('css/qong-tokens.css') }}">
 
     <style>
@@ -129,7 +132,7 @@
 
     <aside class="sidebar">
         <div class="sidebar-brand">
-            <div class="sidebar-brand-title"><img src="{{ asset('images/qong-logo.png') }}" alt="QONG" style="width:28px;height:28px;object-fit:contain;vertical-align:middle;margin-right:8px;">QONG</div>
+            <div class="sidebar-brand-title"><img src="{{ asset('images/qong-mark.png') }}" alt="QONG" style="width:28px;height:28px;object-fit:contain;vertical-align:middle;margin-right:8px;">QONG</div>
             <div class="sidebar-brand-sub">{{ auth()->user()->role === 'super_admin' ? 'Super Admin Panel' : 'Admin Panel' }}</div>
         </div>
 

@@ -6,6 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>QONG – @yield('title', 'Vendor Panel')</title>
+    <link rel="icon" type="image/x-icon" href="{{ asset('favicon.ico') }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('favicon.png') }}">
+    <link rel="apple-touch-icon" href="{{ asset('images/qong-mark.png') }}">
 
     <!-- Preload brand fonts so they're ready before first paint — stops the
          logo/headings flashing from the system fallback to Barlow/Outfit
@@ -731,7 +734,7 @@
     <!-- ── SIDEBAR ─────────────────────────────────────────── -->
     <aside class="sidebar" id="sidebar">
         <a href="{{ route('vendor.dashboard') }}" class="sidebar-logo" title="Go to Dashboard">
-            <div class="logo-icon"><img src="{{ asset('images/qong-logo.png') }}" alt="QONG" style="width:32px;height:32px;object-fit:contain;"></div>
+            <div class="logo-icon"><img src="{{ asset('images/qong-mark.png') }}" alt="QONG" style="width:32px;height:32px;object-fit:contain;"></div>
             <div class="logo-text">
                 <div class="logo-title">QONG</div>
                 <div class="logo-sub">Beyond Plant</div>
