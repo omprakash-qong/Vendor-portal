@@ -17,16 +17,16 @@ class VendorProfile extends Model
         'company_website', 'company_logo',
         'primary_name', 'primary_designation', 'primary_phone', 'primary_email',
         'secondary',
-        'pan', 'gstin', 'cin', 'incorporation_number', 'msme', 'tax_id_intl', 'msme_certificate',
+        'gstin', 'incorporation_number', 'msme', 'tax_id_intl', 'msme_certificate',
         'vendor_category', 'vendor_category_other', 'authorization_letter', 'industry_focus', 'industry_focus_other',
         'subdomain_pumps', 'subdomain_compressors', 'subdomain_instruments',
         'subdomain_valves', 'subdomain_turbines', 'subdomain_motors',
         'iso_certified', 'iso_number', 'iso_certificate', 'industry_standards', 'other_standards',
         'quality_certificate_number', 'quality_certificate_file',
         'authorized_brands', 'distribution_region', 'inventory_capability', 'warehouse_availability', 'dealer_certificate',
-        'company_brochure', 'incorporation_cert', 'bank_details', 'additional_certs',
+        'company_brochure', 'incorporation_cert', 'additional_certs',
         'terms_accepted', 'data_accurate',
-        'submission_status', 'submitted_at', 'reviewed_at', 'reviewer_notes', 'admin_notes',
+        'submission_status', 'submitted_at', 'reviewed_at', 'admin_notes',
     ];
  
     protected $casts = [
@@ -55,23 +55,8 @@ class VendorProfile extends Model
         return $this->hasMany(Product::class);
     }
 
-    public function datasheets()
-    {
-        return $this->hasMany(Datasheet::class);
-    }
-
-    public function rfqs()
-    {
-        return $this->hasMany(Rfq::class);
-    }
-
     public function quotations()
     {
         return $this->hasMany(Quotation::class);
-    }
-
-    public function supportTickets()
-    {
-        return $this->hasMany(SupportTicket::class);
     }
 }

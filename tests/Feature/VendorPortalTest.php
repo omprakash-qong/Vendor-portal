@@ -3,10 +3,7 @@
 use App\Models\User;
 use App\Models\VendorProfile;
 use App\Models\Product;
-use App\Models\Datasheet;
-use App\Models\Rfq;
 use App\Models\Quotation;
-use App\Models\SupportTicket;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -288,107 +285,5 @@ test('vendor can manage products', function () {
 
     $this->assertSoftDeleted('products', [
         'id' => $product->id,
-    ]);
-});
-
-test('vendor can manage datasheets', function () {
-    $user = User::factory()->create(['role' => 'vendor']);
-    $vendor = VendorProfile::factory()->create(['user_id' => $user->id, 'submission_status' => 'approved']);
-    $product = Product::create([
-        'vendor_profile_id' => $vendor->id,
-        'name' => 'Test Product',
-        'category' => 'Pumps',
-    ]);
-
-    // 1. Upload Datasheet
-    Storage::fake('public');
-    $pdf = UploadedFile::fake()->create('spec.pdf', 500, 'application/pdf');
-
-    $this->actingAs($user)->post('/vendor/datasheets', [
-        'product_id' => $product->id,
-        'name' => 'Test Datasheet',
-        'pdf' => $pdf,
-    ])->assertRedirect('/vendor/datasheets');
-
-    $this->assertDatabaseHas('datasheets', [
-        'vendor_profile_id' => $vendor->id,
-        'product_id' => $product->id,
-        'name' => 'Test Datasheet',
-    ]);
-
-    $datasheet = Datasheet::first();
-
-    // 2. Replace Datasheet
-    $newPdf = UploadedFile::fake()->create('new_spec.pdf', 600, 'application/pdf');
-    $this->actingAs($user)->post("/vendor/datasheets/{$datasheet->id}/replace", [
-        'product_id' => $product->id,
-        'name' => 'Replaced Datasheet Name',
-        'pdf' => $newPdf,
-    ])->assertRedirect('/vendor/datasheets');
-
-    $this->assertDatabaseHas('datasheets', [
-        'id' => $datasheet->id,
-        'name' => 'Replaced Datasheet Name',
-    ]);
-
-    // 3. Delete Datasheet
-    $this->actingAs($user)->delete("/vendor/datasheets/{$datasheet->id}")
-         ->assertRedirect('/vendor/datasheets');
-
-    $this->assertSoftDeleted('datasheets', [
-        'id' => $datasheet->id,
-    ]);
-});
-
-test('vendor can view RFQs and submit quotation', function () {
-    $user = User::factory()->create(['role' => 'vendor']);
-    $vendor = VendorProfile::factory()->create(['user_id' => $user->id, 'submission_status' => 'approved']);
-    
-    $rfq = Rfq::create([
-        'vendor_profile_id' => $vendor->id,
-        'rfq_number' => 'RFQ-TEST-999',
-        'product_name' => 'Test Pumps Required',
-        'description' => 'Test RFQ Description',
-    ]);
-
-    // 1. View RFQ
-    $this->actingAs($user)->get("/vendor/rfqs/{$rfq->id}")
-         ->assertStatus(200)
-         ->assertSee('RFQ-TEST-999')
-         ->assertSee('Test Pumps Required');
-
-    // 2. Submit Quotation
-    Storage::fake('public');
-    $pdf = UploadedFile::fake()->create('quote_prop.pdf', 500, 'application/pdf');
-
-    $this->actingAs($user)->post("/vendor/rfqs/{$rfq->id}/quote", [
-        'price' => 5400.50,
-        'lead_time' => '3 Weeks',
-        'remarks' => 'Test quotation remarks',
-        'attachment' => $pdf,
-    ])->assertRedirect("/vendor/rfqs/{$rfq->id}");
-
-    $this->assertDatabaseHas('quotations', [
-        'rfq_id' => $rfq->id,
-        'vendor_profile_id' => $vendor->id,
-        'price' => 5400.50,
-        'lead_time' => '3 Weeks',
-    ]);
-});
-
-test('vendor can raise support ticket', function () {
-    $user = User::factory()->create(['role' => 'vendor']);
-    $vendor = VendorProfile::factory()->create(['user_id' => $user->id, 'submission_status' => 'approved']);
-
-    $this->actingAs($user)->post('/vendor/support', [
-        'subject' => 'Test Ticket Subject',
-        'description' => 'Test Ticket Description',
-    ])->assertRedirect('/vendor/support');
-
-    $this->assertDatabaseHas('support_tickets', [
-        'vendor_profile_id' => $vendor->id,
-        'subject' => 'Test Ticket Subject',
-        'description' => 'Test Ticket Description',
-        'status' => 'open',
     ]);
 });

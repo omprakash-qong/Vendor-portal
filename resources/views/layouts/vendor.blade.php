@@ -1,10 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <script>try{if(localStorage.getItem('qong-theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>QONG – @yield('title', 'Vendor Panel')</title>
+
+    <!-- Preload brand fonts so they're ready before first paint — stops the
+         logo/headings flashing from the system fallback to Barlow/Outfit
+         (font-display:swap) every time you navigate (e.g. clicking the logo). -->
+    <link rel="preload" as="font" type="font/woff2" href="{{ asset('fonts/qong/outfit.woff2') }}" crossorigin>
+    <link rel="preload" as="font" type="font/woff2" href="{{ asset('fonts/qong/barlow-condensed-700.woff2') }}" crossorigin>
+    <link rel="preload" as="font" type="font/woff2" href="{{ asset('fonts/qong/barlow-condensed-600.woff2') }}" crossorigin>
 
     <!-- QONG Design System — tokens + self-hosted brand fonts -->
     <link rel="stylesheet" href="{{ asset('css/qong-tokens.css') }}">
@@ -15,6 +23,22 @@
             --sidebar-w:      260px;
             --navbar-h:       64px;
         }
+
+        /* ─── Dark mode (toggled via data-theme on <html>) ─── */
+        [data-theme="dark"] {
+            --bg-deep:        #0f1117;
+            --bg-mid:         #161922;
+            --bg-card:        #161922;
+            --bg-card-hover:  #1d2130;
+            --border:         #2a2f40;
+            --input-bg:       #1b1f2b;
+            --text-primary:   #f1f3f9;
+            --text-secondary: #c2c7d6;
+            --text-muted:     #8b90a3;
+        }
+        [data-theme="dark"] .sidebar { background: rgba(20,23,32,0.92); }
+        [data-theme="dark"] .navbar  { background: rgba(20,23,32,0.88); }
+        [data-theme="dark"] select option { background: #1b1f2b; color: #f1f3f9; }
 
         /* ─── Reset & Base ──────────────────────────────────────────── */
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -171,8 +195,29 @@
             padding: 16px 12px;
             border-top: 1px solid var(--border);
         }
-        .sidebar-footer .nav-item { color: #f87171; }
-        .sidebar-footer .nav-item:hover { background: rgba(248,113,113,0.08); color: #fca5a5; }
+        .sidebar-footer form { margin: 0; }
+        /* Logout button: identical box-model to the nav items so it lines up
+           pixel-for-pixel with Dashboard / My Products / Quotations above. */
+        .logout-btn {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            width: 100%;
+            padding: 11px 14px;
+            border: none;
+            background: none;
+            border-radius: var(--radius-sm);
+            color: #ef4444;
+            font-family: var(--font-sans);
+            font-size: 13.5px;
+            font-weight: 500;
+            letter-spacing: 0.3px;
+            text-align: left;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .logout-btn:hover { background: rgba(239,68,68,0.10); color: #f87171; }
+        .logout-btn .nav-icon { width: 18px; text-align: center; font-size: 15px; flex-shrink: 0; }
 
         /* ─── Main Area ─────────────────────────────────────────────── */
         .main {
@@ -221,8 +266,67 @@
             letter-spacing: 0.4px;
         }
         .navbar-breadcrumb span { color: var(--purple-neon); }
+        /* "QONG" crumb acts as a Home button back to the dashboard */
+        .crumb-home {
+            display: inline-flex; align-items: center;
+            padding: 5px 12px; border-radius: 8px;
+            border: 1px solid var(--border); background: var(--input-bg);
+            color: var(--text-secondary); text-decoration: none;
+            font-weight: 700; letter-spacing: 0.5px;
+            transition: all 0.2s;
+        }
+        .crumb-home:hover { border-color: var(--purple-bright); color: var(--purple-neon); }
         .navbar-right {
-            display: flex; align-items: center; gap: 16px;
+            display: flex; align-items: center; gap: 14px;
+        }
+        /* clickable logo */
+        a.sidebar-logo { text-decoration: none; cursor: pointer; }
+        a.sidebar-logo:hover .logo-title { text-shadow: 0 0 16px var(--purple-glow); }
+
+        /* ── Dark-mode toggle switch ── */
+        .theme-toggle {
+            position: relative; width: 56px; height: 28px;
+            border: 1px solid var(--border); border-radius: 20px;
+            background: var(--input-bg); cursor: pointer; padding: 0;
+            display: flex; align-items: center; justify-content: space-between;
+            transition: background 0.25s, border-color 0.25s;
+        }
+        .theme-toggle .theme-ico { font-size: 12px; width: 22px; text-align: center; color: var(--text-muted); line-height: 1; }
+        .theme-knob {
+            position: absolute; top: 2px; left: 2px;
+            width: 22px; height: 22px; border-radius: 50%;
+            background: linear-gradient(135deg, var(--purple-mid), var(--purple-bright));
+            box-shadow: 0 0 10px var(--purple-glow);
+            transition: transform 0.25s ease;
+        }
+        [data-theme="dark"] .theme-knob { transform: translateX(28px); }
+        .theme-toggle:hover { border-color: var(--purple-bright); }
+
+        /* ── Popover menus (notifications / profile) ── */
+        .nav-pop { position: relative; }
+        .pop-menu {
+            position: absolute; top: calc(100% + 10px); right: 0;
+            min-width: 230px; background: var(--bg-card);
+            border: 1px solid var(--border); border-radius: 12px;
+            box-shadow: 0 12px 32px rgba(0,0,0,0.14);
+            padding: 6px; z-index: 200; display: none;
+        }
+        .pop-menu.open { display: block; animation: popIn 0.14s ease; }
+        @keyframes popIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+        .pop-head { padding: 10px 12px 8px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+        .pop-name { font-weight: 700; color: var(--text-primary); font-size: 13.5px; }
+        .pop-mail { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
+        .pop-empty { padding: 14px 12px; color: var(--text-muted); font-size: 12.5px; }
+        .pop-item {
+            display: block; padding: 9px 12px; border-radius: 8px;
+            color: var(--text-secondary); text-decoration: none; font-size: 13px; font-weight: 500;
+        }
+        .pop-item:hover { background: var(--bg-card-hover); color: var(--text-primary); }
+        .pop-item-danger { color: #dc2626; }
+        .pop-item-danger:hover { background: rgba(239,68,68,0.08); color: #dc2626; }
+
+        .navbar-right {
+            display: flex; align-items: center; gap: 14px;
         }
         .notif-btn {
             width: 36px; height: 36px;
@@ -626,13 +730,13 @@
 
     <!-- ── SIDEBAR ─────────────────────────────────────────── -->
     <aside class="sidebar" id="sidebar">
-        <div class="sidebar-logo">
+        <a href="{{ route('vendor.dashboard') }}" class="sidebar-logo" title="Go to Dashboard">
             <div class="logo-icon"><img src="{{ asset('images/qong-logo.png') }}" alt="QONG" style="width:32px;height:32px;object-fit:contain;"></div>
             <div class="logo-text">
                 <div class="logo-title">QONG</div>
                 <div class="logo-sub">Beyond Plant</div>
             </div>
-        </div>
+        </a>
 
         <div class="nav-scroll">
             <div class="nav-label">Main</div>
@@ -654,8 +758,8 @@
         <div class="sidebar-footer">
             <form action="{{ route('logout') }}" method="POST">
                 @csrf
-                <button type="submit" class="nav-item" style="width:100%;background:none;border:none;cursor:pointer;text-align:left;">
-                    <span class="nav-icon">⇥</span> Logout
+                <button type="submit" class="logout-btn">
+                    <span class="nav-icon">⏻</span> Logout
                 </button>
             </form>
         </div>
@@ -674,15 +778,45 @@
                     </button>
                 @endunless
                 <div class="navbar-breadcrumb">
-                    QONG &nbsp;/&nbsp; <span>@yield('breadcrumb', 'Dashboard')</span>
+                    <a href="{{ route('vendor.dashboard') }}" class="crumb-home">QONG</a> &nbsp;/&nbsp; <span>@yield('breadcrumb', 'Dashboard')</span>
                 </div>
             </div>
             <div class="navbar-right">
-                <div class="notif-btn">
-                    🔔<span class="notif-dot"></span>
+                <!-- Dark mode toggle -->
+                <button type="button" class="theme-toggle" id="themeToggle" title="Toggle dark mode" aria-label="Toggle dark mode">
+                    <span class="theme-ico theme-ico-sun">☀</span>
+                    <span class="theme-knob"></span>
+                    <span class="theme-ico theme-ico-moon">☾</span>
+                </button>
+
+                <!-- Notifications -->
+                <div class="nav-pop" id="notifWrap">
+                    <button type="button" class="notif-btn" id="notifBtn" aria-label="Notifications">
+                        🔔<span class="notif-dot"></span>
+                    </button>
+                    <div class="pop-menu" id="notifMenu">
+                        <div class="pop-head">Notifications</div>
+                        <div class="pop-empty">You're all caught up — no new notifications.</div>
+                    </div>
                 </div>
-                <div class="avatar">
-                    {{ strtoupper(substr(auth()->user()->name ?? 'V', 0, 1)) }}
+
+                <!-- Profile -->
+                <div class="nav-pop" id="profileWrap">
+                    <button type="button" class="avatar" id="profileBtn" aria-label="Account menu">
+                        {{ strtoupper(substr(auth()->user()->name ?? 'V', 0, 1)) }}
+                    </button>
+                    <div class="pop-menu pop-menu-right" id="profileMenu">
+                        <div class="pop-head">
+                            <div class="pop-name">{{ auth()->user()->name ?? 'Vendor' }}</div>
+                            <div class="pop-mail">{{ auth()->user()->email ?? '' }}</div>
+                        </div>
+                        <a href="{{ route('vendor.dashboard') }}" class="pop-item">⬡ Dashboard</a>
+                        <a href="{{ route('vendor.products.index') }}" class="pop-item">📦 My Products</a>
+                        <form action="{{ route('logout') }}" method="POST" style="margin:0;">
+                            @csrf
+                            <button type="submit" class="pop-item pop-item-danger" style="width:100%;border:none;background:none;text-align:left;cursor:pointer;">⇥ Logout</button>
+                        </form>
+                    </div>
                 </div>
             </div>
         </nav>
@@ -703,6 +837,41 @@
 </div><!-- /shell -->
 
 <script>
+    // ── Dark mode: persist choice across pages ──
+    (function () {
+        var root = document.documentElement;
+        try {
+            if (localStorage.getItem('qong-theme') === 'dark') root.setAttribute('data-theme', 'dark');
+        } catch (e) {}
+        var toggle = document.getElementById('themeToggle');
+        if (toggle) {
+            toggle.addEventListener('click', function () {
+                var dark = root.getAttribute('data-theme') === 'dark';
+                if (dark) { root.removeAttribute('data-theme'); try { localStorage.setItem('qong-theme', 'light'); } catch (e) {} }
+                else { root.setAttribute('data-theme', 'dark'); try { localStorage.setItem('qong-theme', 'dark'); } catch (e) {} }
+            });
+        }
+    })();
+
+    // ── Navbar popovers: notifications + profile ──
+    (function () {
+        function wire(btnId, menuId) {
+            var btn = document.getElementById(btnId), menu = document.getElementById(menuId);
+            if (!btn || !menu) return;
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                document.querySelectorAll('.pop-menu.open').forEach(function (m) { if (m !== menu) m.classList.remove('open'); });
+                menu.classList.toggle('open');
+            });
+            menu.addEventListener('click', function (e) { e.stopPropagation(); });
+        }
+        wire('notifBtn', 'notifMenu');
+        wire('profileBtn', 'profileMenu');
+        document.addEventListener('click', function () {
+            document.querySelectorAll('.pop-menu.open').forEach(function (m) { m.classList.remove('open'); });
+        });
+    })();
+
     // Top-bar Back button: step back through in-app history,
     // falling back to the dashboard when there is nowhere to go back to.
     function vendorGoBack() {

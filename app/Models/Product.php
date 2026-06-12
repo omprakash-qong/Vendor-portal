@@ -15,16 +15,12 @@ class Product extends Model
         'name',
         'model_number',
         'brand',
-        'sku',
         'category',
         'description',
-        'short_description',
-        'long_description',
         'specifications',
         'image_path',
-        'datasheet_url',
-        'catalogue_url',
-        'import_source',
+        'catalogue_url',   // internal: resume-dedup of already-imported product URLs
+        'import_source',   // internal: which website the import came from
         'status',
     ];
 
@@ -39,11 +35,6 @@ class Product extends Model
     public function vendorProfile()
     {
         return $this->belongsTo(VendorProfile::class);
-    }
-
-    public function datasheets()
-    {
-        return $this->hasMany(Datasheet::class);
     }
 
     public function additionalSpecifications()

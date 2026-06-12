@@ -1,5 +1,5 @@
 <x-guest-layout>
-<style>    @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700&display=swap');
+<style>    @import url('/css/qong-tokens.css');
     *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
     html,body{height:100%;background:#05010f;font-family:var(--font-sans);overflow:hidden}
 
@@ -54,7 +54,7 @@
     /* ── Divider ── */
     .divider{height:1px;background:linear-gradient(90deg,transparent,rgba(200,0,255,.55) 40%,rgba(200,0,255,.55) 60%,transparent);margin-bottom:1.2rem;animation:fadeUp .5s .18s both}
 
-    /* ── Headings — Bebas Neue like the website ── */
+    /* ── Headings — Barlow Condensed like the website ── */
     .qong-heading{
         font-family:var(--font-display);
         font-weight:400;font-size:1.7rem;

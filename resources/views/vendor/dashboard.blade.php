@@ -11,6 +11,7 @@
         grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
         gap: 24px;
         margin-top: 36px;
+        max-width: 520px;
     }
     .action-card {
         background: var(--bg-card);
@@ -126,17 +127,7 @@
 </div>
 
 <div class="action-grid">
-    <!-- Card 1: Import Products -->
-    <div class="action-card">
-        <div>
-            <div class="action-icon">📥</div>
-            <div class="action-title">Import Products</div>
-            <div class="action-desc">Add products in bulk by importing them automatically from your website.</div>
-        </div>
-        <a href="{{ route('vendor.import.index') }}" class="btn btn-primary action-btn">Import Products</a>
-    </div>
-
-    <!-- Card 2: Add Product -->
+    <!-- Add Product -->
     <div class="action-card">
         <div>
             <div class="action-icon">📦</div>

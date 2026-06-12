@@ -58,7 +58,7 @@
     <div class="import-panel">
         <div class="import-icon">📭</div>
         <div class="import-title">No Products Found</div>
-        <div class="import-sub">We couldn't find any products to import. Try a different page or import a PDF / Excel / CSV file instead.</div>
+        <div class="import-sub">We couldn't find any products to import. Try pasting the page that directly lists your products, or add a product manually.</div>
         <a href="{{ route('vendor.import.index') }}" class="btn btn-outline" style="padding:12px 28px;">← Back to Import</a>
     </div>
 
@@ -67,7 +67,7 @@
     <div class="import-panel">
         <div class="import-icon">⚠️</div>
         <div class="import-title">Import Couldn't Complete</div>
-        <div class="import-sub">Something went wrong while importing. Please try again, or import a PDF / Excel / CSV file instead.</div>
+        <div class="import-sub">Something went wrong while importing. Please try again, or add a product manually.</div>
         <a href="{{ route('vendor.import.index') }}" class="btn btn-outline" style="padding:12px 28px;">← Back to Import</a>
     </div>
 

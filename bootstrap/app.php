@@ -13,6 +13,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Trust forwarding proxies (e.g. a demo tunnel / load balancer) so the
+        // app honors X-Forwarded-Proto and generates correct https URLs.
+        $middleware->trustProxies(at: '*');
+
         // Replace default ValidatePostSize with our 50MB version for vendor uploads
         $middleware->replace(
             \Illuminate\Http\Middleware\ValidatePostSize::class,
@@ -22,7 +26,6 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'vendor'    => \App\Http\Middleware\VendorMiddleware::class,
             'admin'     => \App\Http\Middleware\AdminMiddleware::class,
-            'qs.apikey' => \App\Http\Middleware\QsApiKeyMiddleware::class,
         ]);
 
         // Redirect already-authenticated users away from /login to the correct dashboard

@@ -54,11 +54,21 @@ class CrawlWebsiteJob implements ShouldQueue
         }
         file_put_contents($fieldsFile, json_encode($labels, JSON_UNESCAPED_UNICODE));
 
+        // Resume support: hand the crawler the product URLs this vendor already
+        // has, so it skips them and only scrapes new ones.
+        $skipFile = sys_get_temp_dir() . '/crawl_skip_' . $job->id . '.txt';
+        $known = Product::where('vendor_profile_id', $job->vendor_profile_id)
+            ->whereNotNull('catalogue_url')
+            ->pluck('catalogue_url')
+            ->implode("\n");
+        file_put_contents($skipFile, $known);
+
         $cmd = $python
             . ' ' . escapeshellarg($script)
             . ' ' . escapeshellarg($job->website_url)
             . ' ' . escapeshellarg($outFile)
             . ' ' . escapeshellarg($fieldsFile)
+            . ' ' . escapeshellarg($skipFile)
             . ' 2>' . escapeshellarg($stderrFile);
 
         // Stream the crawler's output so products are saved the moment they
@@ -90,6 +100,13 @@ class CrawlWebsiteJob implements ShouldQueue
 
             if ($this->saveProduct($raw, $job, $mapper, $sync)) {
                 $count++;
+                // DEBUG: record the exact page the first product was scraped
+                // from, so we can confirm the crawler traversed down to a real
+                // product/listing page (not the homepage) for the typed URL.
+                if ($count === 1 && !empty($raw['source_url'])) {
+                    $this->addLog($job, 'info', $raw['source_url'],
+                        '[DEBUG] First product "' . ($raw['product_name'] ?? '?') . '" scraped from: ' . $raw['source_url']);
+                }
                 // Update the live count so the UI can show progress.
                 $job->update(['status' => 'running', 'products_found' => $count]);
             }
@@ -128,10 +145,19 @@ class CrawlWebsiteJob implements ShouldQueue
         }
         @unlink($outFile);
         @unlink($fieldsFile);
+        @unlink($skipFile);
 
         if ($count === 0) {
             $stderr = @file_get_contents($stderrFile) ?: '';
-            $job->update(['status' => 'failed', 'error_message' => 'No products found. ' . substr($stderr, 0, 150), 'completed_at' => now()]);
+            // Drop invalid byte sequences, then truncate by CHARACTER (not byte)
+            // so a multibyte symbol is never sliced in half — a half-character
+            // would make MySQL reject the write (1366) and freeze the job.
+            $stderr = mb_convert_encoding($stderr, 'UTF-8', 'UTF-8');
+            $job->update([
+                'status'        => 'failed',
+                'error_message' => 'No products found. ' . mb_substr($stderr, 0, 150),
+                'completed_at'  => now(),
+            ]);
             return;
         }
 
@@ -151,7 +177,10 @@ class CrawlWebsiteJob implements ShouldQueue
     public function failed(\Throwable $e): void
     {
         $job = ImportJob::find($this->importJobId);
-        $job?->update(['status' => 'failed', 'error_message' => $e->getMessage(), 'completed_at' => now()]);
+        // Sanitize + cap so a malformed/long message can't itself fail the
+        // write (1366) and leave the job stuck on "running".
+        $msg = mb_substr(mb_convert_encoding($e->getMessage(), 'UTF-8', 'UTF-8'), 0, 500);
+        $job?->update(['status' => 'failed', 'error_message' => $msg, 'completed_at' => now()]);
     }
 
     private function addLog(ImportJob $job, string $level, ?string $url, string $message): void
@@ -173,8 +202,33 @@ class CrawlWebsiteJob implements ShouldQueue
     private function saveProduct(array $raw, ImportJob $job, $mapper, $sync): bool
     {
         try {
+            // Resumable import: skip products already in this vendor's catalogue
+            // so repeated runs accumulate the rest instead of duplicating.
+            $name = mb_substr((string) $raw['product_name'], 0, 255);
+            $exists = Product::where('vendor_profile_id', $job->vendor_profile_id)
+                ->where('name', $name)->exists();
+            if ($exists) {
+                return false;
+            }
+
             $rawSpecs = (!empty($raw['specifications']) && is_array($raw['specifications'])) ? $raw['specifications'] : [];
             $specs    = $mapper->normalize($raw['category'] ?? null, $rawSpecs);
+
+            // A real product page exposes specifications. Pages with none are
+            // landing/marketing/category pages, not products — never save them.
+            // (This is what stops homepage hero text/images being captured.)
+            $hasSpecs = false;
+            foreach ($specs as $k => $v) {
+                if ($k === 'extra') {
+                    if (is_array($v) && count($v) >= 2) { $hasSpecs = true; break; }
+                } elseif (trim((string) $v) !== '') {
+                    $hasSpecs = true; break;
+                }
+            }
+            if (!$hasSpecs) {
+                $this->addLog($job, 'info', $raw['source_url'] ?? null, 'Skipped non-product page (no specifications): ' . $name);
+                return false;
+            }
 
             $imagePath = $this->downloadImage($raw['image_url'] ?? null, $raw['source_url'] ?? $job->website_url);
 
@@ -188,6 +242,7 @@ class CrawlWebsiteJob implements ShouldQueue
                 'description'       => $raw['description'] ?? null,
                 'image_path'        => $imagePath,
                 'import_source'     => mb_substr((string) $job->website_url, 0, 500),  // internal only
+                'catalogue_url'     => isset($raw['source_url']) ? mb_substr((string) $raw['source_url'], 0, 500) : null,  // internal: for resume dedup
                 'specifications'    => !empty($specs) ? $specs : null,
                 'status'            => 'inactive',
             ]);

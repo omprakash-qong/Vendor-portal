@@ -81,10 +81,10 @@
                     </div>
                 </div>
                 <div class="field">
-                    <label class="field-label">Category <span class="req">*</span></label>
+                    <label class="field-label">Product <span class="req">*</span></label>
                     <div class="input-wrap no-icon">
                         <select name="category" id="categorySelect" required>
-                            <option value="">-- Select Category --</option>
+                            <option value="">-- Select Product --</option>
                             @foreach($catKeys as $cat)
                                 <option value="{{ $cat }}" {{ old('category', $product->category) == $cat ? 'selected' : '' }}>{{ $cat }}</option>
                             @endforeach

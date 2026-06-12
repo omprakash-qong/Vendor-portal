@@ -695,6 +695,7 @@ async def _prep_page(page):
 # Known per-category field labels, supplied by the app (config/category_fields.php).
 # Populated at startup from an optional CLI arg; empty means "unknown".
 KNOWN_FIELDS: dict = {}        # {category: {label: canonical_key}}
+SKIP_URLS: set = set()         # normalized product URLs already imported (resume)
 
 
 def _all_known_labels() -> list:
@@ -787,165 +788,155 @@ async def _scrape_product(page, source_url: str) -> dict | None:
 
 
 async def generic_browser_crawl(url: str, max_products: int = 300) -> dict:
-    from playwright.async_api import async_playwright
+    """Bounded breadth-first traversal of a site:
 
-    MAX_PRODUCTS = max_products
-    MAX_LISTING_PAGES = 60          # safety cap on pagination clicks
-    base_domain = urlparse(url).netloc
+    Render the given URL. If it's a product detail page, scrape it. If it's a
+    listing / category / section / home page, follow its product-section and
+    product links one level deeper, and repeat — so from any starting point we
+    traverse to the product listing(s) and then into each product page.
+
+    Safeguards: skip already-imported URLs (resume), recycle the page to avoid
+    SPA degradation, hard per-page timeout, reject non-product pages, and bound
+    total pages + depth so it can never wander the whole web.
+    """
+    from playwright.async_api import async_playwright
+    from collections import deque
+
+    MAX_PRODUCTS   = max_products
+    MAX_DEPTH      = 4                       # seed → section → category → listing → detail
+    PAGE_CAP       = max(80, max_products * 3)
+    LISTING_FANOUT = 15                      # max section/listing links to follow per page
+    base_domain    = urlparse(url).netloc
     products, errors = [], []
-    product_urls = set()
+    seen_pages = set()
 
     def same_site(u: str) -> bool:
-        return urlparse(u).netloc == base_domain
+        try:
+            return urlparse(u).netloc == base_domain
+        except Exception:
+            return False
 
-    # selector for clickable product entries (anchors or SPA card headings)
     CARD_SEL = "a[href], h2, h3, h4, [role='heading'], [class*='title'], [class*='name']"
-    # exclude header/nav/footer chrome so we click product cards, not menus
     CARD_FILTER = "e.children.length===0 && !e.closest('header,nav,footer,[role=\"navigation\"]') && e.textContent.trim().length>3 && e.textContent.trim().length<90"
+
+    Q = deque()
+
+    def enqueue(u, depth, front=False):
+        n = normalize_url(u)
+        if not same_site(u) or n in seen_pages or n in SKIP_URLS:
+            return
+        seen_pages.add(n)
+        (Q.appendleft if front else Q.append)((u, depth))
+
+    enqueue(maximize_page_size(url), 0)
+
+    async def render_and_scrape(pg, durl, depth):
+        await pg.goto(durl, wait_until="domcontentloaded", timeout=30000)
+        await pg.wait_for_timeout(4500)            # JS catalogues need time to render
+        await _prep_page(pg)
+        p = await _scrape_product(pg, durl)
+        if p is not None:
+            return ("product", p)
+        if depth >= MAX_DEPTH:
+            return ("links", ([], []))
+        # Not a product → harvest links to traverse deeper.
+        try:
+            hrefs = await pg.evaluate("()=>[...document.querySelectorAll('a[href]')].map(a=>a.href)")
+        except Exception:
+            hrefs = []
+        cur_norm = normalize_url(durl)
+        detail, listing = [], []
+        for h in dict.fromkeys(hrefs):
+            n = normalize_url(h)
+            if not same_site(h) or n == cur_norm or n in seen_pages or n in SKIP_URLS:
+                continue
+            if is_detail_url(h):
+                detail.append(h)
+            elif is_product_url(h):
+                listing.append(maximize_page_size(h))
+        return ("links", (detail, listing[:LISTING_FANOUT]))
 
     async with async_playwright() as pw:
         browser = await pw.chromium.launch(headless=True)
         page = await browser.new_page()
         seed_norm = normalize_url(url)
+        pages_done = 0
+        spa_listing = None         # remember a listing page for the SPA-click fallback
 
-        # Maximize the listing page size so one render yields every product,
-        # not just the first page.
-        seed_url = maximize_page_size(url)
-        try:
-            await page.goto(seed_url, wait_until="domcontentloaded", timeout=60000)
-            await page.wait_for_timeout(9000)   # large listings need time to populate
-            await _prep_page(page)
-        except Exception as e:
-            errors.append({"url": seed_url, "error": "seed: " + str(e)})
+        while Q and len(products) < MAX_PRODUCTS and pages_done < PAGE_CAP:
+            durl, depth = Q.popleft()
 
-        # The seed itself might be a single product page.
-        try:
-            p = await _scrape_product(page, url)
-            if p:
-                products.append(p)
-                product_urls.add(seed_norm)
-                emit_product(p)
-        except Exception:
-            pass
-
-        # Path A — real anchor links (static / multi-page catalogues). Visit
-        # genuine detail pages first so the budget isn't spent on category
-        # pages, then fall back to broader product-signal links. Paginate
-        # through "Next" so every page's products are gathered, not just page 1.
-        detail, other, detail_seen = [], [], set()
-
-        async def gather_anchors():
-            try:
-                hrefs = await page.evaluate("()=>[...document.querySelectorAll('a[href]')].map(a=>a.href)")
-            except Exception:
-                return 0
-            added = 0
-            for h in dict.fromkeys(hrefs):
-                if not same_site(h) or normalize_url(h) == seed_norm:
-                    continue
-                nu = normalize_url(h)
-                if is_detail_url(h):
-                    if nu not in detail_seen:
-                        detail_seen.add(nu)
-                        detail.append(h)
-                        added += 1
-                elif is_product_url(h):
-                    other.append(h)
-            return added
-
-        try:
-            await gather_anchors()
-            for _ in range(MAX_LISTING_PAGES):
-                if len(detail) >= MAX_PRODUCTS:
-                    break
-                clicked = await page.evaluate(_JS_NEXT_PAGE)
-                if not clicked:
-                    break
-                await page.wait_for_timeout(3000)        # let the next page render
+            # Recycle the page periodically (a single page degrades after many
+            # heavy SPA navigations and starts hanging).
+            if pages_done and pages_done % 15 == 0:
                 try:
-                    await page.evaluate(_JS_REMOVE_OVERLAYS)
+                    await page.close()
                 except Exception:
                     pass
-                if await gather_anchors() == 0:
-                    break                                 # no new products → done
-            log_n = len(detail)
-        except Exception:
-            pass
+                page = await browser.new_page()
+            pages_done += 1
 
-        anchor_urls = detail + other
-
-        async def visit_and_scrape(durl):
-            await page.goto(durl, wait_until="domcontentloaded", timeout=30000)
-            await page.wait_for_timeout(4500)   # JS catalogues need time to render
-            await _prep_page(page)
-            return await _scrape_product(page, durl)
-
-        for durl in anchor_urls:
-            if len(products) >= MAX_PRODUCTS:
-                break
-            nu = normalize_url(durl)
-            if nu in product_urls:
-                continue
-            product_urls.add(nu)
             try:
-                # Hard cap per page so one hung/slow page can't freeze the crawl.
-                p = await asyncio.wait_for(visit_and_scrape(durl), timeout=45)
-                if p:
-                    products.append(p)
-                    emit_product(p)
+                kind, payload = await asyncio.wait_for(
+                    render_and_scrape(page, durl, depth), timeout=50)
             except Exception as e:
                 errors.append({"url": durl, "error": str(e)})
+                continue
 
-        # Path B — SPA grids that navigate on click (no usable anchors). Click
-        # each card, scrape the detail it opens, then step back. One render of
-        # the listing is reused for all cards (no costly reloads).
-        if len(products) < 3:
+            if kind == "product":
+                products.append(payload)
+                emit_product(payload)
+                continue
+
+            detail, listing = payload
+            if (detail or listing) and spa_listing is None:
+                spa_listing = durl
+            # Detail pages first (front), then sections/listings (back).
+            for h in detail:
+                enqueue(h, depth + 1, front=True)
+            for h in listing:
+                enqueue(h, depth + 1, front=False)
+
+        # SPA-grid fallback: some listings render product cards that navigate on
+        # click (no usable <a href>). If traversal found little, click through
+        # the remembered listing's cards.
+        if len(products) < 3 and spa_listing:
             try:
-                await page.goto(url, wait_until="domcontentloaded", timeout=60000)
+                await page.goto(spa_listing, wait_until="domcontentloaded", timeout=60000)
                 await page.wait_for_timeout(3000)
                 await _prep_page(page)
                 count = await page.evaluate(
                     "(a)=>[...document.querySelectorAll(a.sel)].filter(e=>(" + CARD_FILTER + ")).length",
-                    {"sel": CARD_SEL},
-                )
+                    {"sel": CARD_SEL})
             except Exception:
                 count = 0
-
             misses = 0
             for i in range(min(count, MAX_PRODUCTS * 2)):
-                if len(products) >= MAX_PRODUCTS:
-                    break
-                # Stop once we're clearly past the product grid: many clicks in
-                # a row that opened nothing new (header links done, footer next).
-                if misses >= (6 if products else 18):
+                if len(products) >= MAX_PRODUCTS or misses >= (6 if products else 18):
                     break
                 try:
                     clicked = await page.evaluate(
                         "(a)=>{const els=[...document.querySelectorAll(a.sel)].filter(e=>(" + CARD_FILTER + ")); if(a.i>=els.length)return false; els[a.i].scrollIntoView(); els[a.i].click(); return true;}",
-                        {"sel": CARD_SEL, "i": i},
-                    )
+                        {"sel": CARD_SEL, "i": i})
                     if not clicked:
                         continue
-                    await page.wait_for_timeout(4500)   # allow detail page to render
+                    await page.wait_for_timeout(4500)
                     cur = page.url
-                    nu = normalize_url(cur)
+                    n = normalize_url(cur)
                     found = False
-                    if same_site(cur) and is_detail_url(cur) and nu != seed_norm and nu not in product_urls:
-                        product_urls.add(nu)
+                    if same_site(cur) and is_detail_url(cur) and n not in seen_pages and n not in SKIP_URLS:
+                        seen_pages.add(n)
                         await _prep_page(page)
                         p = await _scrape_product(page, cur)
                         if p:
-                            products.append(p)
-                            emit_product(p)
-                            found = True
+                            products.append(p); emit_product(p); found = True
                     misses = 0 if found else misses + 1
-                    # back to the listing for the next card
                     await page.go_back(wait_until="domcontentloaded", timeout=60000)
                     await page.wait_for_timeout(1500)
                     await page.evaluate(_JS_REMOVE_OVERLAYS)
                 except Exception:
                     try:
-                        await page.goto(url, wait_until="domcontentloaded", timeout=60000)
+                        await page.goto(spa_listing, wait_until="domcontentloaded", timeout=60000)
                         await page.wait_for_timeout(2500)
                         await page.evaluate(_JS_REMOVE_OVERLAYS)
                     except Exception:
@@ -961,7 +952,7 @@ async def generic_browser_crawl(url: str, max_products: int = 300) -> dict:
             seen_final.add(k)
             deduped.append(p)
 
-    return {"products": deduped, "pages_crawled": len(product_urls), "errors": errors}
+    return {"products": deduped, "pages_crawled": pages_done, "errors": errors}
 
 
 async def main(url: str) -> dict:
@@ -1008,6 +999,18 @@ if __name__ == "__main__":
                 loaded = json.load(f)
             if isinstance(loaded, dict):
                 KNOWN_FIELDS.update(loaded)
+        except Exception:
+            pass
+
+    # Optional 5th arg: a file of already-imported product URLs (one per line)
+    # so a resume run skips them instead of re-scraping.
+    if len(sys.argv) >= 5 and sys.argv[4]:
+        try:
+            with open(sys.argv[4]) as f:
+                for line in f:
+                    u = line.strip()
+                    if u:
+                        SKIP_URLS.add(normalize_url(u))
         except Exception:
             pass
 

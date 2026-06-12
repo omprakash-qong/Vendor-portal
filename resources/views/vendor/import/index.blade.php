@@ -71,34 +71,9 @@
     <div class="alert alert-error">✖ {{ $errors->first() }}</div>
 @endif
 
-{{-- Website import (only source) --}}
-<div class="card">
-    <div class="card-header">
-        <div class="card-icon">🌐</div>
-        <div>
-            <div class="card-title">Import from Website</div>
-            <div class="card-desc">Enter your website address and we'll add your products to your catalogue automatically.</div>
-        </div>
-    </div>
-    <div class="card-body">
-        <form method="POST" action="{{ route('vendor.import.website') }}">
-            @csrf
-            <div class="field" style="margin-bottom:20px;">
-                <label class="field-label">Website Address <span class="req">*</span></label>
-                <div class="input-wrap">
-                    <span class="input-icon">🔗</span>
-                    <input type="url" name="url" placeholder="https://yourcompany.com/products" required value="{{ old('url') }}">
-                </div>
-                <p class="field-hint">Paste the page that lists your products. Importing runs in the background and products appear under “Needs Review”.</p>
-            </div>
-            <button type="submit" class="btn btn-primary">📥 Import</button>
-        </form>
-    </div>
-</div>
-
-{{-- Recent Import Jobs --}}
+{{-- Recent Import Jobs — shown above the form so the "View" section stays on top --}}
 @if($recentJobs->count())
-<div class="card" style="margin-top:32px;">
+<div class="card" style="margin-bottom:32px;">
     <div class="card-header">
         <div class="card-icon">📋</div>
         <div>
@@ -143,5 +118,30 @@
     </div>
 </div>
 @endif
+
+{{-- Website import (only source) --}}
+<div class="card">
+    <div class="card-header">
+        <div class="card-icon">🌐</div>
+        <div>
+            <div class="card-title">Import from Website</div>
+            <div class="card-desc">Enter your website address and we'll add your products to your catalogue automatically.</div>
+        </div>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{{ route('vendor.import.website') }}">
+            @csrf
+            <div class="field" style="margin-bottom:20px;">
+                <label class="field-label">Website Address <span class="req">*</span></label>
+                <div class="input-wrap">
+                    <span class="input-icon">🔗</span>
+                    <input type="url" name="url" placeholder="https://yourcompany.com/products" required value="{{ old('url') }}">
+                </div>
+                <p class="field-hint">Paste the page that lists your products. Importing runs in the background and products appear under “Needs Review”.</p>
+            </div>
+            <button type="submit" class="btn btn-primary">📥 Import</button>
+        </form>
+    </div>
+</div>
 
 @endsection

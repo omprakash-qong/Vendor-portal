@@ -9,8 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class ImportJob extends Model
 {
     protected $fillable = [
-        'vendor_profile_id', 'source_type', 'website_url',
-        'file_name', 'file_path', 'status',
+        'vendor_profile_id', 'source_type', 'website_url', 'status',
         'pages_crawled', 'products_found', 'failed_pages',
         'started_at', 'completed_at', 'error_message',
     ];
@@ -28,11 +27,6 @@ class ImportJob extends Model
     public function logs(): HasMany
     {
         return $this->hasMany(ImportJobLog::class);
-    }
-
-    public function stagingProducts(): HasMany
-    {
-        return $this->hasMany(ProductStaging::class);
     }
 
     public function scopeVendorJobs($query)
