@@ -156,7 +156,7 @@
 (function () {
     'use strict';
     const FIELDS  = @json($categoryFields);
-    @php $specForJs = collect($specs)->except('extra'); @endphp
+    @php $specForJs = collect($specs)->except(['extra', '_numeric']); @endphp
     const SAVED   = @json($specForJs->isEmpty() ? (object)[] : $specForJs);
 
     const sel       = document.getElementById('categorySelect');

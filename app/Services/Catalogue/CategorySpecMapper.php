@@ -159,14 +159,20 @@ class CategorySpecMapper
     /**
      * Normalise a raw spec map to canonical category fields.
      *
-     * @param  array<string,mixed> $rawSpecs  label => value pairs from the page
-     * @return array  canonical fields + 'extra' bucket of unmapped labels
+     * @param  array<string,mixed> $rawSpecs   label => value pairs from the page
+     * @param  bool                $keepExtras when false (website imports) unmapped
+     *                                         labels are DISCARDED — scraped pages
+     *                                         carry junk rows (documents/downloads
+     *                                         tables, standards lists) that must not
+     *                                         pollute the planned category fields.
+     *                                         Vendor-typed extras stay on true.
+     * @return array  canonical fields (+ 'extra' bucket only when kept)
      */
-    public function normalize(?string $category, array $rawSpecs): array
+    public function normalize(?string $category, array $rawSpecs, bool $keepExtras = true): array
     {
         $cat = $this->resolveCategory($category);
         if (!$cat) {
-            return $rawSpecs ? ['extra' => $this->scalarsOnly($rawSpecs)] : [];
+            return ($rawSpecs && $keepExtras) ? ['extra' => $this->scalarsOnly($rawSpecs)] : [];
         }
 
         $aliasIndex = $this->buildAliasIndex($cat);
@@ -195,7 +201,7 @@ class CategorySpecMapper
             $canonical = $this->matchAlias($n, $aliasIndex);
             if ($canonical && !isset($result[$canonical])) {
                 $result[$canonical] = $value;
-            } elseif (!$canonical) {
+            } elseif (!$canonical && $keepExtras) {
                 $extra[trim((string) $label)] = $value;
             }
         }

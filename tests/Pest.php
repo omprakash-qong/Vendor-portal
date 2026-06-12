@@ -18,6 +18,9 @@ pest()->extend(TestCase::class)
     ->use(RefreshDatabase::class)
     ->in('Feature');
 
+// Unit tests that touch config() (e.g. CategorySpecMapper) need the app booted.
+pest()->extend(TestCase::class)->in('Unit/CategorySpecMapperTest.php');
+
 /*
 |--------------------------------------------------------------------------
 | Expectations

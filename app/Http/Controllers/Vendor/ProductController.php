@@ -56,8 +56,13 @@ class ProductController extends Controller
     /** Build the specifications JSON from category fields + extra rows. */
     private function buildSpecs(Request $request): ?array
     {
+        // Only the planned fields of the selected category are accepted —
+        // unknown keys (forged or stale from a category switch) are dropped.
+        $allowed = array_keys((array) config('category_fields.' . $request->input('category'), []));
+
         $specs = [];
         foreach ((array) $request->input('specs', []) as $k => $v) {
+            if (!in_array($k, $allowed, true)) continue;
             $v = is_string($v) ? trim($v) : $v;
             if ($v !== '' && $v !== null) {
                 $specs[$k] = $v;
@@ -78,6 +83,13 @@ class ProductController extends Controller
             $specs['extra'] = $extra;
         }
 
+        // Machine-comparable mirror of the values ("110kV to 400kV" →
+        // min 110 / max 400 / unit kV) — comparisons use numbers, not strings.
+        $numeric = app(\App\Services\Catalogue\SpecValueParser::class)->derive($specs);
+        if ($numeric) {
+            $specs['_numeric'] = $numeric;
+        }
+
         return $specs ?: null;
     }
 
@@ -91,10 +103,12 @@ class ProductController extends Controller
 
         $request->validate([
             'name'        => 'required|string|max:255',
-            'category'    => 'required|string|max:255',
+            'category'    => ['required', 'string', \Illuminate\Validation\Rule::in(array_keys((array) config('category_fields', [])))],
             'brand'       => 'nullable|string|max:255',
             'description' => 'nullable|string',
             'image'       => 'nullable|image|mimes:jpeg,png,jpg,webp|max:4096',
+        ], [
+            'category.in' => 'Please choose a product type from the list.',
         ]);
 
         $data = $request->only(['name', 'category', 'brand', 'description']);
@@ -106,8 +120,7 @@ class ProductController extends Controller
         $data['specifications'] = $this->buildSpecs($request);
         $data['status']         = 'active';
 
-        $product = $vendor->products()->create($data);
-        app(\App\Services\Catalogue\ProductSpecSync::class)->sync($product);
+        $vendor->products()->create($data);
 
         return redirect()->route('vendor.products.index')
             ->with('success', 'Product saved and added to your catalogue.');
@@ -149,7 +162,6 @@ class ProductController extends Controller
         $data['status'] = 'active';
 
         $product->update($data);
-        app(\App\Services\Catalogue\ProductSpecSync::class)->sync($product);
 
         $msg = $wasInactive
             ? "'{$product->name}' has been saved and is now active in your catalogue."

@@ -36,9 +36,4 @@ class Product extends Model
     {
         return $this->belongsTo(VendorProfile::class);
     }
-
-    public function additionalSpecifications()
-    {
-        return $this->hasMany(ProductAdditionalSpecification::class);
-    }
 }

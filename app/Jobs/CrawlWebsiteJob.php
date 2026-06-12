@@ -74,7 +74,6 @@ class CrawlWebsiteJob implements ShouldQueue
         // Stream the crawler's output so products are saved the moment they
         // are scraped — the catalogue fills up live while the rest imports.
         $mapper = app(\App\Services\Catalogue\CategorySpecMapper::class);
-        $sync   = app(\App\Services\Catalogue\ProductSpecSync::class);
         $count  = 0;
         $seenNames = [];
 
@@ -98,7 +97,7 @@ class CrawlWebsiteJob implements ShouldQueue
             if (isset($seenNames[$nameKey])) continue;
             $seenNames[$nameKey] = true;
 
-            if ($this->saveProduct($raw, $job, $mapper, $sync)) {
+            if ($this->saveProduct($raw, $job, $mapper)) {
                 $count++;
                 // DEBUG: record the exact page the first product was scraped
                 // from, so we can confirm the crawler traversed down to a real
@@ -138,7 +137,7 @@ class CrawlWebsiteJob implements ShouldQueue
                         $nameKey = mb_strtolower(trim((string) $raw['product_name']));
                         if (isset($seenNames[$nameKey])) continue;
                         $seenNames[$nameKey] = true;
-                        if ($this->saveProduct($raw, $job, $mapper, $sync)) $count++;
+                        if ($this->saveProduct($raw, $job, $mapper)) $count++;
                     }
                 }
             }
@@ -196,57 +195,68 @@ class CrawlWebsiteJob implements ShouldQueue
 
     /**
      * Persist one scraped product as an inactive (needs-review) catalogue
-     * entry, mirroring its specs into the normalized tables. One bad row must
-     * never fail the import. Returns true on success.
+     * entry. Strict: only the planned per-category fields are stored —
+     * unmapped scraped labels (documents tables, standards lists, marketing
+     * rows) are discarded. One bad row must never fail the import.
      */
-    private function saveProduct(array $raw, ImportJob $job, $mapper, $sync): bool
+    private function saveProduct(array $raw, ImportJob $job, $mapper): bool
     {
         try {
             // Resumable import: skip products already in this vendor's catalogue
             // so repeated runs accumulate the rest instead of duplicating.
             $name = mb_substr((string) $raw['product_name'], 0, 255);
+
+            // Defense in depth behind the crawler's own filters: a "name"
+            // that reads like a marketing sentence or a page title is not a
+            // product — never save it.
+            if ((mb_strlen($name) > 40 && str_ends_with(rtrim($name), '.')) || str_contains($name, ' | ')) {
+                $this->addLog($job, 'info', $raw['source_url'] ?? null, 'Skipped (not a product name): ' . $name);
+                return false;
+            }
             $exists = Product::where('vendor_profile_id', $job->vendor_profile_id)
                 ->where('name', $name)->exists();
             if ($exists) {
                 return false;
             }
 
-            $rawSpecs = (!empty($raw['specifications']) && is_array($raw['specifications'])) ? $raw['specifications'] : [];
-            $specs    = $mapper->normalize($raw['category'] ?? null, $rawSpecs);
+            // The category must resolve to one of the planned categories —
+            // and is stored in its canonical form so the edit form always
+            // shows the matching field set.
+            $category = $mapper->resolveCategory($raw['category'] ?? null);
 
-            // A real product page exposes specifications. Pages with none are
-            // landing/marketing/category pages, not products — never save them.
-            // (This is what stops homepage hero text/images being captured.)
-            $hasSpecs = false;
-            foreach ($specs as $k => $v) {
-                if ($k === 'extra') {
-                    if (is_array($v) && count($v) >= 2) { $hasSpecs = true; break; }
-                } elseif (trim((string) $v) !== '') {
-                    $hasSpecs = true; break;
-                }
-            }
-            if (!$hasSpecs) {
-                $this->addLog($job, 'info', $raw['source_url'] ?? null, 'Skipped non-product page (no specifications): ' . $name);
+            $rawSpecs = (!empty($raw['specifications']) && is_array($raw['specifications'])) ? $raw['specifications'] : [];
+            $specs    = $mapper->normalize($category, $rawSpecs, keepExtras: false);
+
+            // A real product fills at least 2 of its category's planned fields.
+            // Landing/marketing/category pages don't — never save them.
+            $filled = count(array_filter($specs, fn ($v) => is_scalar($v) && trim((string) $v) !== ''));
+            if (!$category || $filled < 2) {
+                $this->addLog($job, 'info', $raw['source_url'] ?? null,
+                    'Skipped (not a recognizable product page): ' . $name);
                 return false;
             }
 
+            // Alongside the display strings, store a machine-comparable index
+            // ("110kV to 400kV" → min 110 / max 400 / unit kV) so matching and
+            // search can compare numbers, never unit-suffixed strings.
+            $numeric = app(\App\Services\Catalogue\SpecValueParser::class)->derive($specs);
+            if ($numeric) $specs['_numeric'] = $numeric;
+
             $imagePath = $this->downloadImage($raw['image_url'] ?? null, $raw['source_url'] ?? $job->website_url);
 
-            $product = Product::create([
+            Product::create([
                 'vendor_profile_id' => $job->vendor_profile_id,
-                'name'              => mb_substr((string) $raw['product_name'], 0, 255),
+                'name'              => $name,
                 'model_number'      => $raw['model_number'] ? mb_substr((string) $raw['model_number'], 0, 100) : null,
                 'brand'             => $raw['brand'] ? mb_substr((string) $raw['brand'], 0, 150) : null,
-                'category'          => $raw['category'] ? mb_substr((string) $raw['category'], 0, 255) : null,
-                'short_description' => null,
+                'category'          => $category,
                 'description'       => $raw['description'] ?? null,
                 'image_path'        => $imagePath,
                 'import_source'     => mb_substr((string) $job->website_url, 0, 500),  // internal only
                 'catalogue_url'     => isset($raw['source_url']) ? mb_substr((string) $raw['source_url'], 0, 500) : null,  // internal: for resume dedup
-                'specifications'    => !empty($specs) ? $specs : null,
+                'specifications'    => $specs,
                 'status'            => 'inactive',
             ]);
-            $sync->sync($product);
             return true;
         } catch (\Throwable $e) {
             $this->addLog($job, 'error', $raw['source_url'] ?? null, 'Skipped "' . ($raw['product_name'] ?? '?') . '": ' . $e->getMessage());
